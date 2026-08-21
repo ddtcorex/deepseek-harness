@@ -72,9 +72,11 @@ export interface ClientTransportHooks {
   loadBundle?(url: string): Promise<void>
 }
 
-/** Page global carrying {@link ClientTransportHooks}; absent in the served web app. */
+/** Page globals installed before client-plugin boot. */
 interface ClientTransportGlobal {
   __DSH_TRANSPORT__?: ClientTransportHooks
+  /** Marks a page served by an authenticated, trusted reverse proxy. */
+  __DSH_TRUSTED_PROXY__?: true
 }
 
 /**
@@ -110,7 +112,8 @@ export function apply(ctx: Context): void {
   const pageLocation = typeof location === 'undefined' ? undefined : location
   const fixture = pageLocation !== undefined && new URLSearchParams(pageLocation.search).has('fixture')
   const fixtureClient = fixture ? new FixtureApiClient() : undefined
-  const transport = (globalThis as ClientTransportGlobal).__DSH_TRANSPORT__
+  const pageGlobals = globalThis as ClientTransportGlobal
+  const transport = pageGlobals.__DSH_TRANSPORT__
   const api: IApiClient = fixtureClient ?? transport?.createApiClient() ?? new WebApiClient()
   const rpc = fixtureClient?.rpc ?? createWebConnectionRpc(transport?.fetch)
   let started = false
@@ -129,7 +132,7 @@ export function apply(ctx: Context): void {
   }
   const handle: ConnectionHandle = {
     api,
-    isLoopback: pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    isLoopback: pageLocation === undefined || pageGlobals.__DSH_TRUSTED_PROXY__ === true || isLoopbackHostname(pageLocation.hostname),
     hostDescription: {
       getSnapshot: () => description,
       subscribe: (listener) => {
