@@ -92,9 +92,11 @@ export interface ClientTransportHooks {
   ownsHost?: boolean
 }
 
-/** Page global carrying {@link ClientTransportHooks}; absent in the served web app. */
+/** Page globals installed before client-plugin boot. */
 interface ClientTransportGlobal {
   __DSH_TRANSPORT__?: ClientTransportHooks
+  /** Marks a page served by an authenticated, trusted reverse proxy. */
+  __DSH_TRUSTED_PROXY__?: true
 }
 
 /**
@@ -144,7 +146,8 @@ export function apply(ctx: Context): void {
   const pageLocation = typeof location === 'undefined' ? undefined : location
   const fixture = pageLocation !== undefined && new URLSearchParams(pageLocation.search).has('fixture')
   const fixtureRpc = fixture ? createFixtureConnectionRpc() : undefined
-  const transport = (globalThis as ClientTransportGlobal).__DSH_TRANSPORT__
+  const pageGlobals = globalThis as ClientTransportGlobal
+  const transport = pageGlobals.__DSH_TRANSPORT__
   const rpc = fixtureRpc ?? createWebConnectionRpc(transport?.fetch, transport?.openStream)
   let generationSource: ConnectionGenerationSource | undefined
   let owner: ConnectionOwner | undefined
@@ -169,7 +172,7 @@ export function apply(ctx: Context): void {
     publishGeneration(undefined)
   }
   const handle: ConnectionHandle = {
-    isLoopback: transport?.ownsHost === true || pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    isLoopback: transport?.ownsHost === true || pageGlobals.__DSH_TRUSTED_PROXY__ === true || pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
     generation: {
       getSnapshot: () => generation,
       subscribe: (listener) => {
