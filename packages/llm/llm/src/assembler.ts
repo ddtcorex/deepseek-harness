@@ -127,34 +127,25 @@ export class BlockAssembler {
   }
 
   /**
-   * The one shared keep/drop decision over all seen blocks. Emitted blocks and
-   * replay metadata both derive from this result, so they cannot disagree.
+   * The one shared keep/drop decision over all seen blocks: max-token
+   * truncation drops tool calls that cannot be executed safely. Emitted blocks
+   * and replay metadata both derive from this result, so they cannot disagree.
    */
   private assembled(): { blocks: ContentBlock[]; replay: ReplayEnvelope | undefined } {
     const all = this.order.map(index => this.assemble(this.mustGet(index), index))
-    const kept = all.map(block => this.keepBlock(block))
-    const blocks = all.filter((_, position) => kept[position])
+    const kept = this.finish.kind === 'max-tokens'
+      ? all.map(block => block.type !== 'tool-call')
+      : undefined
+    const blocks = kept === undefined ? all : all.filter((_, position) => kept[position])
     const envelope = this._replayState
     if (envelope?.blocks === undefined) return { blocks, replay: envelope }
     if (envelope.blocks.length !== all.length) return { blocks, replay: undefined }
     return {
       blocks,
-      replay: blocks.length === all.length
+      replay: kept === undefined || blocks.length === all.length
         ? envelope
         : { response: envelope.response, blocks: envelope.blocks.filter((_, position) => kept[position]) },
     }
-  }
-
-  /**
-   * Keep/drop one assembled block. Tool calls are dropped when they cannot be
-   * executed safely: a max-token finish drops every tool call, and a tool call
-   * whose name or id is empty is a degenerate provider emission that would
-   * otherwise dispatch as an unknown tool and poison the next request.
-   */
-  private keepBlock(block: ContentBlock): boolean {
-    if (block.type !== 'tool-call') return true
-    if (this.finish.kind === 'max-tokens') return false
-    return block.name.trim() !== '' && String(block.id).length !== 0
   }
 
   /**

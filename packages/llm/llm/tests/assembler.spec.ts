@@ -100,33 +100,13 @@ describe('BlockAssembler', () => {
     expect(assembler.blocks()).toEqual([{ type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{}' }])
   })
 
-  it('drops a nameless tool call (degenerate provider emission)', () => {
+  it('assembles tool-call with generated id fallback when no id provided', () => {
     const assembler = new BlockAssembler()
     assembler.push({ type: 'tool-call-delta', index: 0, argumentsDelta: '{}' } as StreamChunk)
-    // No id and no name — the call cannot be dispatched, so assembly drops it.
-    expect(assembler.blocks()).toEqual([])
-  })
-
-  it('drops a tool-call block whose id is empty', () => {
-    const assembler = new BlockAssembler()
-    assembler.push({ type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId(''), name: 'read', arguments: '{}' } })
-    expect(assembler.blocks()).toEqual([])
-  })
-
-  it('keeps a tool-call block with a non-empty name and id', () => {
-    const assembler = new BlockAssembler()
-    assembler.push({ type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{}' } })
-    expect(assembler.blocks()).toEqual([{ type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{}' }])
-  })
-
-  it('drops empty tool calls while keeping text and valid tool calls', () => {
-    const assembler = new BlockAssembler()
-    assembler.push({ type: 'text-delta', index: 0, text: 'checking' })
-    assembler.push({ type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId(''), name: '', arguments: '' } })
-    assembler.push({ type: 'block-end', index: 2, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{}' } })
-    expect(assembler.blocks()).toEqual([
-      { type: 'text', text: 'checking' },
-      { type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{}' },
+    // No id and no name provided — uses fallback id `call-{index}` and empty name
+    const blocks = assembler.blocks()
+    expect(blocks).toEqual([
+      { type: 'tool-call', id: ToolCallId('call-0'), name: '', arguments: '{}' },
     ])
   })
 
@@ -214,21 +194,6 @@ describe('BlockAssembler replay metadata', () => {
 
     expect(assembler.blocks()).toEqual([{ type: 'text', text: 'partial' }])
     expect(assembler.replayState).toBe(replayState)
-  })
-
-  it('prunes per-block replay entries when an empty tool call is dropped', () => {
-    const replayState = { response, blocks: ['meta-0', 'meta-1', 'meta-2'] }
-    const assembler = new BlockAssembler()
-    assembler.push({ type: 'block-end', index: 0, block: { type: 'text', text: 'lead' } })
-    assembler.push({ type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId(''), name: '', arguments: '' } })
-    assembler.push({ type: 'block-end', index: 2, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{}' } })
-    assembler.push({ type: 'finish', reason: { kind: 'tool-calls' }, replayState })
-
-    expect(assembler.blocks()).toEqual([
-      { type: 'text', text: 'lead' },
-      { type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{}' },
-    ])
-    expect(assembler.replayState).toEqual({ response, blocks: ['meta-0', 'meta-2'] })
   })
 })
 

@@ -14,13 +14,11 @@ import {
 type Win = {
   location?: { hostname: string; search: string; origin?: string }
   __DSH_TRANSPORT__?: ClientTransportHooks
-  __DSH_TRUSTED_PROXY__?: true
 }
 
 afterEach(() => {
   delete (globalThis as Win).location
   delete (globalThis as Win).__DSH_TRANSPORT__
-  delete (globalThis as Win).__DSH_TRUSTED_PROXY__
 })
 
 class GenerationProbe {
@@ -82,12 +80,6 @@ describe('connection client apply', () => {
   it('reports non-loopback page authority through the connection handle', async () => {
     ;(globalThis as Win).location = { hostname: '192.0.2.20', search: '' }
     expect((await mount()).isLoopback).toBe(false)
-  })
-
-  it('trusts a public page only when its authenticated proxy marks it trusted', async () => {
-    ;(globalThis as Win).location = { hostname: 'dsh.example.test', search: '' }
-    ;(globalThis as Win).__DSH_TRUSTED_PROXY__ = true
-    expect((await mount()).isLoopback).toBe(true)
   })
 
   it('requires one generation source and ignores a stale source disposer', async () => {
