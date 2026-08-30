@@ -46,21 +46,9 @@ export class WelcomeNoticeStore {
     status: 'idle', acknowledged: false, error: null,
   })
 
+  private localAcknowledged = false
   private saving = false
   private following: (() => void) | undefined
-
-  private get localAcknowledged(): boolean {
-    try {
-      return typeof localStorage !== 'undefined' && localStorage.getItem('dsh-welcome-acknowledged') === WELCOME_NOTICE_VERSION
-    } catch { return false }
-  }
-  private set localAcknowledged(value: boolean) {
-    try {
-      if (typeof localStorage === 'undefined') return
-      if (value) localStorage.setItem('dsh-welcome-acknowledged', WELCOME_NOTICE_VERSION)
-      else localStorage.removeItem('dsh-welcome-acknowledged')
-    } catch {}
-  }
 
   /**
    * @param scope - the welcome settings namespace scope; its memory mode is
